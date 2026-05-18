@@ -22,17 +22,16 @@ def train_one_vs_rest_sgd(x, y_binary, learning_rate=0.01, epochs=60):
     for _ in range(epochs):
         indices = np.random.permutation(m)
         for i in indices:
-            # STOCHASTIC UPDATE (1/examples)
+            # STOCHASTIC UPDATE (1/exemples)
             xi = x[i]
             yi = y_binary[i]
 
             # STATS STORE
             z = np.dot(xi, weights) + bias
             y_hat = sigmoid(z)
-            # Prediction error (direction and magnitude of correction).
-            error = y_hat - yi
 
             # ERROR MANAGEMENT
+            error = y_hat - yi
             weights -= learning_rate * error * xi
             bias -= learning_rate * error
 

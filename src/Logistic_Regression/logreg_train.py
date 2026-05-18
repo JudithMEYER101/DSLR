@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from utils.load_csv import load
 from bonus.stochastic_gradient_descent import train_one_vs_rest_sgd
+from bonus.mini_batch_gradient_descent import train_one_vs_rest_minibatch
 
 
 # Feature selection using the most
@@ -28,10 +29,15 @@ FEATURES = [
 
 HOUSES = ["Gryffindor", "Hufflepuff", "Ravenclaw", "Slytherin"]
 
+# SGD BONUS
 BATCH_LEARNING_RATE = 0.1
 BATCH_ITERATIONS = 5000
 SGD_LEARNING_RATE = 0.01
 SGD_EPOCHS = 60
+# MINIBATCH BONUS
+MINIBATCH_LEARNING_RATE = 0.05
+MINIBATCH_EPOCHS = 80
+MINIBATCH_SIZE = 32
 
 
 def sigmoid(z):
@@ -103,7 +109,7 @@ def train_one_vs_rest(x, y_binary, learning_rate=BATCH_LEARNING_RATE, iterations
     return weights, bias
 
 
-def train_models(x, y, use_sgd=False):
+def train_models(x, y, use_sgd=False, use_minibatch=False, minibatch_size=MINIBATCH_SIZE):
     """Train one-vs-rest models for all houses."""
 
     models = {}
@@ -117,16 +123,23 @@ def train_models(x, y, use_sgd=False):
                 learning_rate=SGD_LEARNING_RATE,
                 epochs=SGD_EPOCHS,
             )
+        elif use_minibatch:
+            weights, bias = train_one_vs_rest_minibatch(
+                x,
+                y_binary,
+                learning_rate=MINIBATCH_LEARNING_RATE,
+                epochs=MINIBATCH_EPOCHS,
+                batch_size=minibatch_size,
+            )
         else:
             weights, bias = train_one_vs_rest(x, y_binary)
 
-        # Save the model
+        # SAVE
         models[house] = {
             "weights": weights.tolist(),
             "bias": float(bias),
         }
 
-    # Return all models
     return models
 
 
@@ -141,7 +154,7 @@ def save_model(filepath, models, means, stds):
         "models": models,
     }
 
-    # Write JSON file
+    # WRITE SAVE
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=4)
 
@@ -156,11 +169,26 @@ def parse_args():
         action="store_true",
         help="Use stochastic gradient descent (bonus).",
     )
+    parser.add_argument(
+        "--minibatch",
+        action="store_true",
+        help="Use mini-batch gradient descent (bonus).",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=MINIBATCH_SIZE,
+        help="Mini-batch size (used with --minibatch).",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    if args.sgd and args.minibatch:
+        print("Error: choose only one bonus flag (--sgd or --minibatch).")
+        return
 
     dataset = load(args.dataset)
     if dataset is None:
@@ -174,9 +202,15 @@ def main():
         return
 
     # Train the models
-    models = train_models(x, y, use_sgd=args.sgd)
+    models = train_models(
+        x,
+        y,
+        use_sgd=args.sgd,
+        use_minibatch=args.minibatch,
+        minibatch_size=args.batch_size,
+    )
 
-    # Save weights in output/weights.json
+    # SAVE JSON
     os.makedirs("output", exist_ok=True)
     save_model("output/weights.json", models, means, stds)
     print("Model trained successfully.")
