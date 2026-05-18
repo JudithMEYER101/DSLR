@@ -1,15 +1,17 @@
 import sys
 import os
 import json
+import argparse
 import numpy as np
 import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from utils.load_csv import load
+from bonus.stochastic_gradient_descent import train_one_vs_rest_sgd
 
 
-# Feature selection using the most 
+# Feature selection using the most
 # relevant feature identified previously
 # Astronomy act as global separator (isolate all houses)
 # Herbology and Ancient runes as complementary global separator
@@ -25,6 +27,11 @@ FEATURES = [
 ]
 
 HOUSES = ["Gryffindor", "Hufflepuff", "Ravenclaw", "Slytherin"]
+
+BATCH_LEARNING_RATE = 0.1
+BATCH_ITERATIONS = 5000
+SGD_LEARNING_RATE = 0.01
+SGD_EPOCHS = 60
 
 
 def sigmoid(z):
@@ -69,7 +76,7 @@ def prepare_data(dataset: pd.DataFrame):
     return x, y.to_numpy(), means, stds
 
 
-def train_one_vs_rest(x, y_binary, learning_rate=0.1, iterations=5000):
+def train_one_vs_rest(x, y_binary, learning_rate=BATCH_LEARNING_RATE, iterations=BATCH_ITERATIONS):
     """Train one binary logistic regression model with gradient descent.
     (One vs rest)"""
 
@@ -96,14 +103,22 @@ def train_one_vs_rest(x, y_binary, learning_rate=0.1, iterations=5000):
     return weights, bias
 
 
-def train_models(x, y):
+def train_models(x, y, use_sgd=False):
     """Train one-vs-rest models for all houses."""
 
     models = {}
 
     for house in HOUSES:
         y_binary = np.array([1 if label == house else 0 for label in y], dtype=float)
-        weights, bias = train_one_vs_rest(x, y_binary)
+        if use_sgd:
+            weights, bias = train_one_vs_rest_sgd(
+                x,
+                y_binary,
+                learning_rate=SGD_LEARNING_RATE,
+                epochs=SGD_EPOCHS,
+            )
+        else:
+            weights, bias = train_one_vs_rest(x, y_binary)
 
         # Save the model
         models[house] = {
@@ -131,12 +146,23 @@ def save_model(filepath, models, means, stds):
         json.dump(payload, f, indent=4)
 
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python3 logreg_train.py dataset_train.csv")
-        return
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Train a one-vs-rest logistic regression model."
+    )
+    parser.add_argument("dataset", help="Path to dataset_train.csv")
+    parser.add_argument(
+        "--sgd",
+        action="store_true",
+        help="Use stochastic gradient descent (bonus).",
+    )
+    return parser.parse_args()
 
-    dataset = load(sys.argv[1])
+
+def main():
+    args = parse_args()
+
+    dataset = load(args.dataset)
     if dataset is None:
         return
 
@@ -148,7 +174,7 @@ def main():
         return
 
     # Train the models
-    models = train_models(x, y)
+    models = train_models(x, y, use_sgd=args.sgd)
 
     # Save weights in output/weights.json
     os.makedirs("output", exist_ok=True)
